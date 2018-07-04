@@ -9,7 +9,7 @@ import (
 	"github.com/halink0803/telegram-raffle-bot/common"
 )
 
-var questions common.Questions
+var questions []common.Questions
 
 func readConfigFromFile(path string) (common.BotConfig, error) {
 	data, err := ioutil.ReadFile(path)
@@ -21,19 +21,20 @@ func readConfigFromFile(path string) (common.BotConfig, error) {
 	return result, err
 }
 
-func readQuestionsFromFile(path string) (common.Questions, error) {
+func readQuestionsFromFile(path string) ([]common.Questions, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return common.Questions{}, err
+		return []common.Questions{}, err
 	}
-	result := common.Questions{}
+	result := []common.Questions{}
 	err = json.Unmarshal(data, &result)
 	return result, err
 }
 
 //Bot the main bot
 type Bot struct {
-	bot *tgbotapi.BotAPI
+	bot     *tgbotapi.BotAPI
+	storage *RaffleStorage
 }
 
 func main() {
@@ -50,14 +51,21 @@ func main() {
 	}
 	bot.Debug = true
 
-	questionPath := "question.json"
+	questionPath := "questions.json"
 	questions, err = readQuestionsFromFile(questionPath)
 	if err != nil {
 		log.Panic(err)
 	}
 
+	storagePath := "raffle.db"
+	storage, err := NewBoltStorage(storagePath)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	mybot := Bot{
-		bot: bot,
+		bot:     bot,
+		storage: storage,
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
@@ -98,21 +106,33 @@ func (mybot *Bot) handle(update tgbotapi.Update) {
 }
 
 func replybuttons() tgbotapi.ReplyKeyboardMarkup {
-	replyRow := []tgbotapi.KeyboardButton{}
-	//like button
-	likeKeyboardButton := tgbotapi.NewKeyboardButton("A")
-	replyRow = append(replyRow, likeKeyboardButton)
+	firstRow := []tgbotapi.KeyboardButton{}
+	secondRow := []tgbotapi.KeyboardButton{}
 
-	//unlike button
-	unlikeKeyboardButton := tgbotapi.NewKeyboardButton("B")
-	replyRow = append(replyRow, unlikeKeyboardButton)
+	firstChoice := tgbotapi.NewKeyboardButton("A")
+	firstRow = append(firstRow, firstChoice)
 
-	//download button
-	downloadKeyboardButton := tgbotapi.NewKeyboardButton("C")
-	replyRow = append(replyRow, downloadKeyboardButton)
+	secondChoice := tgbotapi.NewKeyboardButton("B")
+	firstRow = append(firstRow, secondChoice)
 
-	buttons := tgbotapi.NewReplyKeyboard(replyRow)
+	thirdChoice := tgbotapi.NewKeyboardButton("C")
+	secondRow = append(secondRow, thirdChoice)
+
+	fourthChoice := tgbotapi.NewKeyboardButton("D")
+	secondRow = append(secondRow, fourthChoice)
+
+	buttons := tgbotapi.NewReplyKeyboard(firstRow, secondRow)
 	return buttons
+}
+
+//TODO: send next question
+func (mybot *Bot) nextQuestion(update tgbotapi.Update) {
+	// userID := update.Message.From.ID
+	// currentQuestion := mybot.storage.CurrentQuestion()
+}
+
+func randQuestions() {
+
 }
 
 func (mybot *Bot) handleStart(update tgbotapi.Update) {
@@ -123,4 +143,10 @@ func (mybot *Bot) handleStart(update tgbotapi.Update) {
 }
 
 func (mybot *Bot) handleReport(update tgbotapi.Update) {
+	//report following things:
+	//how many overall correct answer
+
+	//average score
+
+	//how many people answer correctly for each question
 }
