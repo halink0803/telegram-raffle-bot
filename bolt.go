@@ -17,6 +17,16 @@ type User struct {
 	WalletAddress   string
 }
 
+//Question questions list
+type Question struct {
+	ID         int    `storm:"id"`
+	Question   string `json:"question"`
+	Options    []string
+	Answer     int
+	Score      int
+	NumberUser int
+}
+
 //RaffleStorage represent bot storage
 type RaffleStorage struct {
 	db *storm.DB
@@ -93,6 +103,47 @@ func (r *RaffleStorage) UpdateWalletAddress(userID int, walletAddress string) er
 }
 
 //Report return a report
-func (r *RaffleStorage) Report() {
+func (r *RaffleStorage) Report() error {
+	return nil
+}
 
+//UserStat return total user score and total point
+func (r *RaffleStorage) UserStat() (int, int, error) {
+	var users []User
+	if err := r.db.All(&users); err != nil {
+		return 0, 0, err
+	}
+	totalUserAnswered := len(users)
+	totalPoint := 0
+	for _, user := range users {
+		totalPoint += user.Score
+	}
+	return totalUserAnswered, totalPoint, nil
+}
+
+//UpdateQuestionScore update question score
+func (r *RaffleStorage) UpdateQuestionScore(question Question, score int) error {
+	var q Question
+	err := r.db.One("ID", question.ID, &q)
+	if err != nil {
+		question.Score += score
+		question.NumberUser = 1
+		err = r.db.Save(&question)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	if err = r.db.UpdateField(&q, "Score", q.Score+score); err != nil {
+		return err
+	}
+	err = r.db.UpdateField(&q, "NumberUser", q.NumberUser+1)
+	return err
+}
+
+//QuestionStat return stat of questions
+func (r *RaffleStorage) QuestionStat() ([]Question, error) {
+	var questions []Question
+	err := r.db.AllByIndex("ID", &questions)
+	return questions, err
 }

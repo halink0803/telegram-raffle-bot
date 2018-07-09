@@ -16,7 +16,8 @@ const (
 	updateWalletAddress = "update_wallet_address"
 )
 
-var questions []common.Questions
+var questions []Question
+var chatGroup string
 
 func readConfigFromFile(path string) (common.BotConfig, error) {
 	data, err := ioutil.ReadFile(path)
@@ -28,12 +29,12 @@ func readConfigFromFile(path string) (common.BotConfig, error) {
 	return result, err
 }
 
-func readQuestionsFromFile(path string) ([]common.Questions, error) {
+func readQuestionsFromFile(path string) ([]Question, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return []common.Questions{}, err
+		return []Question{}, err
 	}
-	result := []common.Questions{}
+	result := []Question{}
 	err = json.Unmarshal(data, &result)
 	return result, err
 }
@@ -52,6 +53,8 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
+
+	chatGroup = botConfig.ChatGroup
 
 	// init bot
 	bot, err := tgbotapi.NewBotAPI(botConfig.BotKey)
@@ -235,6 +238,13 @@ func (mybot *Bot) handleAnswer(update tgbotapi.Update, option int) {
 		if err := mybot.storage.UpdateUserScore(userID, user.Score); err != nil {
 			log.Panic(err)
 		}
+		if err := mybot.storage.UpdateQuestionScore(question, 1); err != nil {
+			log.Panic(err)
+		}
+	} else {
+		if err := mybot.storage.UpdateQuestionScore(question, 0); err != nil {
+			log.Panic(err)
+		}
 	}
 	mybot.nextQuestion(update)
 }
@@ -270,16 +280,16 @@ func (mybot *Bot) handleStart(update tgbotapi.Update) {
 }
 
 func (mybot *Bot) isAdminPrevilege(update tgbotapi.Update) bool {
+	log.Print(chatGroup)
 	chatConfig := tgbotapi.ChatConfigWithUser{
-		ChatID:             update.Message.Chat.ID,
-		SuperGroupUsername: "",
+		SuperGroupUsername: "@" + chatGroup,
 		UserID:             update.Message.From.ID,
 	}
 	chatMember, err := mybot.bot.GetChatMember(chatConfig)
 	if err != nil {
 		log.Panic(err)
 	}
-	return chatMember.IsAdministrator()
+	return chatMember.IsAdministrator() || chatMember.IsCreator()
 }
 
 func (mybot *Bot) handleReport(update tgbotapi.Update) {
@@ -292,10 +302,34 @@ func (mybot *Bot) handleReport(update tgbotapi.Update) {
 	}
 	//report following things:
 	//how many overall correct answer
-
+	totalUserAnswer, totalPoint, err := mybot.storage.UserStat()
+	if err != nil {
+		log.Panic(err)
+	}
 	//average score
-
+	averageScore := 0.0
+	if totalUserAnswer > 0 {
+		averageScore = float64(totalPoint) / float64(totalUserAnswer)
+	}
 	//how many people answer correctly for each question
+	msgContent := fmt.Sprintf("Total user answered questions: %d\n", totalUserAnswer)
+	msgContent += fmt.Sprintf("Average score: %.2f\n", averageScore)
+
+	//average score by question
+	questions, err := mybot.storage.QuestionStat()
+	if err != nil {
+		log.Panic(err)
+	}
+	msgContent += fmt.Sprintf("Average score by question: \n")
+	for _, question := range questions {
+		average := 0.0
+		if question.NumberUser > 0 {
+			average = float64(question.Score) / float64(question.NumberUser)
+		}
+		msgContent += fmt.Sprintf("Question %d: %.2f\n", question.ID, average)
+	}
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgContent)
+	mybot.bot.Send(msg)
 }
 
 func (mybot *Bot) handleMe(update tgbotapi.Update) {
