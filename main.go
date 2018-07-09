@@ -66,7 +66,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	storagePath := "raffle.db"
+	storagePath := "/db/raffle.db"
 	storage, err := NewBoltStorage(storagePath)
 	if err != nil {
 		log.Panic(err)
