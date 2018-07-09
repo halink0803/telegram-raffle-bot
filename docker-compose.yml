@@ -1,0 +1,8 @@
+version: '2'
+services:
+  raffle_bot:
+    build: .
+    image: raffle 
+    volumes:
+      - ./db:/db
+    command: telegram-raffle-bot 
